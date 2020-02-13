@@ -10,3 +10,4 @@ Get e-Callisto data: <br>
 ```pip3 install matplotlib``` <br>
 ```pip3 install radiospectra```<br>
 ```pip3 install opencv-python opencv-contrib-python```<br>
+```pip3 install torch``` <br>
