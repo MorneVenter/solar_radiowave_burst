@@ -9,4 +9,4 @@ Get e-Callisto data: <br>
 ```sudo apt install python-tk```<br>
 ```pip3 install matplotlib``` <br>
 ```pip3 install radiospectra```<br>
-```pip3 install opencv-python==3.3.0.10 opencv-contrib-python==3.3.0.10```<br>
+```pip3 install opencv-python opencv-contrib-python```<br>
