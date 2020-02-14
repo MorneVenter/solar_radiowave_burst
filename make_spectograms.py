@@ -1,6 +1,8 @@
 
 import matplotlib.pyplot as plt
 from radiospectra.sources.callisto import CallistoSpectrogram
+import numpy
+
 
 files = 'type3.fit.gz'
 image = CallistoSpectrogram.read(files)
