@@ -6,8 +6,8 @@ import cv2
 import math
 import os
 
-#load FIT
-files = 'type3.fit.gz'
+#load FIT data
+files = './data/type3.fit.gz'
 image = CallistoSpectrogram.read(files)
 nobg = plt.figure(figsize=(16,6))
 nobg = image.subtract_bg()
