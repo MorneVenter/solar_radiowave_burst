@@ -7,4 +7,4 @@ Get e-Callisto data: <br>
 
 # Packages
 ```pip3 install radiospectra```<br>
-
+```sudo pip3 install opencv-python==3.4.2.17 opencv-contrib-python==3.4.2.17```<br>
