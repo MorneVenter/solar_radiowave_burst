@@ -26,9 +26,13 @@ grayImage = cv2.cvtColor(originalImage, cv2.COLOR_BGR2GRAY)
 mask = np.zeros(blackAndWhiteImage.shape[:2], dtype=np.uint8)
 cv2.rectangle(mask, (323,76), (1217,480), (255), thickness = -1)
 
+# erosion
+kernel = np.ones((5,5),np.uint8)
+erosion = cv2.erode(cv2.bitwise_and(blackAndWhiteImage, mask),kernel,iterations = 1)
+
 
 #show img
-cv2.imshow('PreProc Image', blackAndWhiteImage)
+cv2.imshow('PreProc Image', erosion)
 cv2.waitKey(0)
 
 # cleanup
