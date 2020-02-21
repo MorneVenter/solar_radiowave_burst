@@ -24,15 +24,29 @@ grayImage = cv2.cvtColor(originalImage, cv2.COLOR_BGR2GRAY)
 
 # mask spectogram
 mask = np.zeros(blackAndWhiteImage.shape[:2], dtype=np.uint8)
-cv2.rectangle(mask, (323,76), (1217,480), (255), thickness = -1)
+cv2.rectangle(mask, (320,142), (1216,408), (255), thickness = -1)
 
-# erosion
-kernel = np.ones((5,5),np.uint8)
-erosion = cv2.erode(cv2.bitwise_and(blackAndWhiteImage, mask),kernel,iterations = 1)
+# closing
+kernel = np.ones((15,15),np.uint8)
+dilation = cv2.dilate(cv2.bitwise_and(blackAndWhiteImage, mask),kernel,iterations = 10)
+erosion = cv2.erode(dilation,kernel,iterations = 10)
+
+#smooth
+kernel = np.ones((10,10),np.float32)/100
+erosion = cv2.filter2D(erosion,-1,kernel)
+
+# hough lines
+# edges = cv2.Canny(erosion,50,150,apertureSize = 3)
+minLineLength = 50
+maxLineGap = 10
+lines = cv2.HoughLinesP(erosion,1,np.pi/180,42,minLineLength,maxLineGap)
+if not(lines is None):
+    for x1,y1,x2,y2 in lines[0]:
+        cv2.line(originalImage,(x1,y1),(x2,y2),(0,255,0),2)
 
 
 #show img
-cv2.imshow('PreProc Image', erosion)
+cv2.imshow('Final Image', originalImage)
 cv2.waitKey(0)
 
 # cleanup
