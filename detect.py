@@ -57,13 +57,13 @@ if not(lines is None):
                 cv2.putText(outImage, 'Type II', (x1+20,y2), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 255), 1, cv2.LINE_AA)
 
 
-# show images
-cv2.imshow('Gray Image', grayImage)
-cv2.imshow('Binary Image', blackAndWhiteImage)
-cv2.imshow('Cropped Image', crop)
-cv2.imshow('Erosion Image', erosion)
-cv2.imshow('Smooth Image', smooth)
-cv2.imshow('Final Image', originalImage)
+# show images, uncomment to see process
+# cv2.imshow('Gray Image', grayImage)
+# cv2.imshow('Binary Image', blackAndWhiteImage)
+# cv2.imshow('Cropped Image', crop)
+# cv2.imshow('Erosion Image', erosion)
+# cv2.imshow('Smooth Image', smooth)
+# cv2.imshow('Final Image', originalImage)
 
 # show pectrogram
 cv2.imshow('Spectrogram', outImage)
