@@ -72,13 +72,13 @@ for file in datafiles:
                 slope = (y2-y1)/(x2-x1)
                 if slope<0 and slope>-math.inf and abs(slope)>0.06:
                     valid_lines.append([x1,y1,x2,y2])
-                    cv2.line(outImage,(x1,y1),(x2,y2),(0,0,255),2)
+                    #cv2.line(outImage,(x1,y1),(x2,y2),(0,0,255),2)
         neighbor_dist = []
         for ln in valid_lines:
             near = []
             r = distance.euclidean((ln[0],ln[1]), (ln[2],ln[3]))
-            cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
-            cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
+            #cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
+            #cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
             for ln2 in valid_lines:
                 if distance.euclidean((ln[0],ln[1]), (ln2[0],ln2[1])) < r:
                     near.append([ln2[0],ln2[1]])
@@ -110,7 +110,9 @@ for file in datafiles:
 
             if not(np.array_equal(ln,[100000,0,0,100000])):
                 final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
-                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
+                #cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
+                r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
+                cv2.circle(outImage,(int((ln[0]+ln[2])/2),int((ln[1]+ln[3])/2)),int(r/2),(255,255,255),2,8,0)
                 print(final_slope)
                 if final_slope <= -3:
                     cv2.putText(outImage, 'Type III', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
