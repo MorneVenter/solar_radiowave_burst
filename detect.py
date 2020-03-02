@@ -5,6 +5,8 @@ import numpy as np
 import cv2
 import os
 import math
+from scipy.spatial import distance
+import itertools
 
 #load all files
 rootdir = 'data/'
@@ -44,7 +46,6 @@ for file in datafiles:
 
     # mask spectogram
     mask = np.zeros(blackAndWhiteImage.shape[:2], dtype=np.uint8)
-    #cv2.rectangle(mask, (320,142), (1216,408), (255), thickness = -1)
     cv2.rectangle(mask, (324,76), (1215,479), (255), thickness = -1)
     crop = cv2.bitwise_and(blackAndWhiteImage, mask)
 
@@ -56,15 +57,6 @@ for file in datafiles:
     kernel_med = np.ones((6,6),np.uint8)/36
     final = cv2.filter2D(erosion,-1,kernel_med)
 
-    # # closing
-    # kernel = np.ones((15,15),np.uint8)
-    #
-    # dilation = cv2.dilate(crop,kernel,iterations = 10)
-    # erosion = cv2.erode(dilation,kernel,iterations = 10)
-    #
-    # # smooth
-    # kernel = np.ones((10,10),np.float32)/100
-    # smooth = cv2.filter2D(erosion,-1,kernel)
 
     # hough lines
     minLineLength = 50
@@ -74,38 +66,60 @@ for file in datafiles:
     threshold = 250
     lines = cv2.HoughLinesP(final,rho,theta,threshold,minLineLength,maxLineGap)
     if not(lines is None):
-        ln = np.array([100000,0,0,100000])
+        valid_lines = []
         for line in lines:
             for x1,y1,x2,y2 in line:
                 slope = (y2-y1)/(x2-x1)
                 if slope<0 and slope>-math.inf and abs(slope)>0.06:
-                    if x1 < ln[0]:ln[0] = x1
-                    if y1 > ln[1]:ln[1] = y1
-                    if x2 < ln[0]:ln[0] = x2
-                    if y2 > ln[1]:ln[1] = y2
+                    valid_lines.append([x1,y1,x2,y2])
+                    cv2.line(outImage,(x1,y1),(x2,y2),(0,0,255),2)
+        neighbor_dist = []
+        for ln in valid_lines:
+            near = []
+            r = distance.euclidean((ln[0],ln[1]), (ln[2],ln[3]))
+            cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
+            cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
+            for ln2 in valid_lines:
+                if distance.euclidean((ln[0],ln[1]), (ln2[0],ln2[1])) < r:
+                    near.append([ln2[0],ln2[1]])
+                if distance.euclidean((ln[0],ln[1]), (ln2[2],ln2[3])) < r:
+                    near.append([ln2[2],ln2[3]])
+                if distance.euclidean((ln[2],ln[3]), (ln2[0],ln2[1])) < r:
+                    near.append([ln2[0],ln2[1]])
+                if distance.euclidean((ln[2],ln[3]), (ln2[2],ln2[3])) < r:
+                    near.append([ln2[2],ln2[3]])
+            if not(near == []):
+                neighbor_dist.append(near)
 
-                    if x1 > ln[2]:ln[2] = x1
-                    if y1 < ln[3]:ln[3] = y1
-                    if x2 > ln[2]:ln[2] = x2
-                    if y2 < ln[3]:ln[3] = y2
+        for i in range(0,len(neighbor_dist)-1):
+            for k in range(i+1, len(neighbor_dist)):
+                for pt in neighbor_dist[i]:
+                    if(pt in neighbor_dist[k]):
+                        neighbor_dist[i] = neighbor_dist[i] + neighbor_dist[k]
+                        neighbor_dist[i] = list(k for k,_ in itertools.groupby(neighbor_dist[i]))
+                        #neighbor_dist[i] = neighbor_dist[i] + list(set(neighbor_dist[k]) - set(neighbor_dist[i]))
+                        neighbor_dist[k]=[]
 
-        if not(np.array_equal(ln,[100000,0,0,100000])):
-            final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
-            cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
-            print(final_slope)
-            if final_slope <= -3:
-                cv2.putText(outImage, 'Type III', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
-            elif final_slope > -3:
-                cv2.putText(outImage, 'Type II', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+        for row in neighbor_dist:
+            ln = np.array([100000,0,0,100000])
+            for pt in row:
+                if pt[0] < ln[0]:ln[0] = pt[0]
+                if pt[1] > ln[1]:ln[1] = pt[1]
+                if pt[0] > ln[2]:ln[2] = pt[0]
+                if pt[1] < ln[3]:ln[3] = pt[1]
+
+            if not(np.array_equal(ln,[100000,0,0,100000])):
+                final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
+                print(final_slope)
+                if final_slope <= -3:
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+                elif final_slope > -3:
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
 
 
     # show images, uncomment to see process
-    # cv2.imshow('Gray Image    ', grayImage)
-    # cv2.imshow('Binary Image', blackAndWhiteImage)
-    # cv2.imshow('Cropped Image', crop)
-    # cv2.imshow('Erosion Image', erosion)
     cv2.imshow('Smooth Image', final)
-    # cv2.imshow('Final Image', originalImage)
 
     # show pectrogram
     cv2.imshow('Spectrogram', outImage)
