@@ -97,7 +97,6 @@ for file in datafiles:
                     if(pt in neighbor_dist[k]):
                         neighbor_dist[i] = neighbor_dist[i] + neighbor_dist[k]
                         neighbor_dist[i] = list(k for k,_ in itertools.groupby(neighbor_dist[i]))
-                        #neighbor_dist[i] = neighbor_dist[i] + list(set(neighbor_dist[k]) - set(neighbor_dist[i]))
                         neighbor_dist[k]=[]
 
         for row in neighbor_dist:
