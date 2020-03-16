@@ -29,7 +29,7 @@ for file in datafiles:
     nobg = image.subtract_bg()
 
     # plots spectogram and saves img
-    nobg.plot(vmin=12, vmax = 255, cmap='inferno')
+    nobg.plot(vmin=0, vmax = 200, cmap='inferno')
     #plt.axis('equal')
     plt.title ('Result')
     plt.savefig('pre-proc.png')
@@ -41,7 +41,7 @@ for file in datafiles:
     originalImage = cv2.imread('pre-proc.png')
     grayImage = cv2.cvtColor(originalImage, cv2.COLOR_BGR2GRAY)
 
-    #median filter
+    #avg filter
     kernel_med = np.ones((6,6),np.uint8)/30
     med = cv2.filter2D(grayImage,-1,kernel_med)
 
@@ -55,9 +55,9 @@ for file in datafiles:
 
     # Erosion
     e_kernel = np.ones((3,3),np.uint8)
-    erosion = cv2.erode(crop,e_kernel,iterations = 2)
+    erosion = cv2.erode(crop,e_kernel,iterations = 1)
 
-    # med 2
+    # avg 2
     kernel_med = np.ones((6,6),np.uint8)/36
     final = cv2.filter2D(erosion,-1,kernel_med)
 
@@ -74,7 +74,7 @@ for file in datafiles:
         for line in lines:
             for x1,y1,x2,y2 in line:
                 slope = (y2-y1)/(x2-x1)
-                if slope<0 and slope>-math.inf and abs(slope)>0.06:
+                if slope<0 and slope>-math.inf and abs(slope)>0.1:
                     valid_lines.append([x1,y1,x2,y2])
                     if debug:
                         cv2.line(outImage,(x1,y1),(x2,y2),(0,0,255),2)
@@ -82,7 +82,7 @@ for file in datafiles:
         for ln in valid_lines:
             near = []
             #r = distance.euclidean((ln[0],ln[1]), (ln[2],ln[3]))
-            r = 30
+            r = 19
             if debug:
                 cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
                 cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
@@ -129,8 +129,13 @@ for file in datafiles:
                     cv2.putText(outImage, 'Type II', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
 
 
-    # show images, uncomment to see process
-    cv2.imshow('Smooth Image', final)
+    # show images
+    if debug:
+        cv2.imshow('Gray Image', grayImage)
+        cv2.imshow('Averaged Image', med)
+        cv2.imshow('Binary Image', blackAndWhiteImage)
+        cv2.imshow('Eroded Image', erosion)
+        cv2.imshow('Averaged Image 2', final)
 
     # show pectrogram
     cv2.imshow('Spectrogram', outImage)
