@@ -5,6 +5,22 @@ import numpy as np
 import cv2
 import os
 import math
+from scipy.spatial import distance
+import itertools
+from imutils import build_montages
+from imutils import paths
+import intersect as IS
+import argparse
+debug = False
+
+#use -d tp show debug info
+parser = argparse.ArgumentParser(description='Enabled debugging.')
+parser.add_argument("-d", "--debug", help="Enabled debugging options.", action='store_true')
+args = parser.parse_args()
+dbg = args.debug
+
+if isinstance(dbg, bool) and dbg==True:
+    debug = True
 
 #load all files
 rootdir = 'data/'
@@ -23,7 +39,7 @@ for file in datafiles:
     nobg = image.subtract_bg()
 
     # plots spectogram and saves img
-    nobg.plot(vmin=12, vmax = 255, cmap='inferno')
+    nobg.plot(vmin=0, vmax = 200, cmap='inferno')
     #plt.axis('equal')
     plt.title ('Result')
     plt.savefig('pre-proc.png')
@@ -35,7 +51,7 @@ for file in datafiles:
     originalImage = cv2.imread('pre-proc.png')
     grayImage = cv2.cvtColor(originalImage, cv2.COLOR_BGR2GRAY)
 
-    #median filter
+    #avg filter
     kernel_med = np.ones((6,6),np.uint8)/30
     med = cv2.filter2D(grayImage,-1,kernel_med)
 
@@ -44,71 +60,127 @@ for file in datafiles:
 
     # mask spectogram
     mask = np.zeros(blackAndWhiteImage.shape[:2], dtype=np.uint8)
-    #cv2.rectangle(mask, (320,142), (1216,408), (255), thickness = -1)
     cv2.rectangle(mask, (324,76), (1215,479), (255), thickness = -1)
     crop = cv2.bitwise_and(blackAndWhiteImage, mask)
 
     # Erosion
     e_kernel = np.ones((3,3),np.uint8)
-    erosion = cv2.erode(crop,e_kernel,iterations = 2)
+    erosion = cv2.erode(crop,e_kernel,iterations = 1)
 
-    # med 2
+    # avg 2
     kernel_med = np.ones((6,6),np.uint8)/36
     final = cv2.filter2D(erosion,-1,kernel_med)
 
-    # # closing
-    # kernel = np.ones((15,15),np.uint8)
-    #
-    # dilation = cv2.dilate(crop,kernel,iterations = 10)
-    # erosion = cv2.erode(dilation,kernel,iterations = 10)
-    #
-    # # smooth
-    # kernel = np.ones((10,10),np.float32)/100
-    # smooth = cv2.filter2D(erosion,-1,kernel)
 
     # hough lines
-    minLineLength = 50
-    maxLineGap = 40
+    minLineLength = 130
+    maxLineGap = 1
     rho = 3
     theta = np.pi/180
-    threshold = 250
+    threshold = 300
     lines = cv2.HoughLinesP(final,rho,theta,threshold,minLineLength,maxLineGap)
     if not(lines is None):
-        ln = np.array([100000,0,0,100000])
+        valid_lines = []
         for line in lines:
             for x1,y1,x2,y2 in line:
                 slope = (y2-y1)/(x2-x1)
-                if slope<0 and slope>-math.inf and abs(slope)>0.06:
-                    if x1 < ln[0]:ln[0] = x1
-                    if y1 > ln[1]:ln[1] = y1
-                    if x2 < ln[0]:ln[0] = x2
-                    if y2 > ln[1]:ln[1] = y2
+                if slope<0 and slope>-math.inf and abs(slope)>0.1:
+                    valid_lines.append([x1,y1,x2,y2])
+                    if debug:
+                        cv2.line(outImage,(x1,y1),(x2,y2),(0,0,255),2)
+        neighbor_dist = []
+        for ln in valid_lines:
+            near = []
+            r = 10
+            if debug:
+                cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
+                cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
+            near.append([ln[0],ln[1]])
+            near.append([ln[2],ln[3]])
+            for ln2 in valid_lines:
+                if distance.euclidean((ln[0],ln[1]), (ln2[0],ln2[1])) < r*2:
+                    near.append([ln2[0],ln2[1]])
+                if distance.euclidean((ln[0],ln[1]), (ln2[2],ln2[3])) < r*2:
+                    near.append([ln2[2],ln2[3]])
+                if distance.euclidean((ln[2],ln[3]), (ln2[0],ln2[1])) < r*2:
+                    near.append([ln2[0],ln2[1]])
+                if distance.euclidean((ln[2],ln[3]), (ln2[2],ln2[3])) < r*2:
+                    near.append([ln2[2],ln2[3]])
+            if not(near == []):
+                neighbor_dist.append(near)
 
-                    if x1 > ln[2]:ln[2] = x1
-                    if y1 < ln[3]:ln[3] = y1
-                    if x2 > ln[2]:ln[2] = x2
-                    if y2 < ln[3]:ln[3] = y2
+        for i in range(0,len(neighbor_dist)-1):
+            for k in range(i+1, len(neighbor_dist)):
+                for pt in neighbor_dist[i]:
+                    if(pt in neighbor_dist[k]):
+                        neighbor_dist[i] = neighbor_dist[i] + neighbor_dist[k]
+                        neighbor_dist[i] = list(k for k,_ in itertools.groupby(neighbor_dist[i]))
+                        neighbor_dist[k]=[]
+        final_lines=[]
+        for row in neighbor_dist:
+            ln = np.array([100000,0,0,100000])
+            for pt in row:
+                if pt[0] < ln[0]:ln[0] = pt[0]
+                if pt[1] > ln[1]:ln[1] = pt[1]
+                if pt[0] > ln[2]:ln[2] = pt[0]
+                if pt[1] < ln[3]:ln[3] = pt[1]
 
-        if not(np.array_equal(ln,[100000,0,0,100000])):
-            final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
-            cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
-            print(final_slope)
-            if final_slope <= -3:
-                cv2.putText(outImage, 'Type III', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
-            elif final_slope > -3:
-                cv2.putText(outImage, 'Type II', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+            if not(np.array_equal(ln,[100000,0,0,100000])):
+                final_lines.append(ln);
+
+        for ln1 in range(0, len(final_lines)-1):
+            for ln2 in range(ln1+1, len(final_lines)):
+                pt1 = IS.Point(final_lines[ln1][0],final_lines[ln1][1])
+                pt2 = IS.Point(final_lines[ln1][2],final_lines[ln1][3])
+                pt3 = IS.Point(final_lines[ln2][0],final_lines[ln2][1])
+                pt4 = IS.Point(final_lines[ln2][2],final_lines[ln2][3])
+                if IS.doIntersect(pt1, pt2, pt3, pt4):
+                    l1Len = IS.getLength(pt1, pt2)
+                    l2Len = IS.getLength(pt3, pt4)
+                    if l1Len < l2Len:
+                        final_lines[ln1] = [0,0,0,0]
+                    else:
+                        final_lines[ln2] = [0,0,0,0]
+
+        for ln in final_lines:
+            if not(np.array_equal(ln,[0,0,0,0])):
+                final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
+                if debug:
+                    cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,0,255),2)
+                r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,0),3)
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
+                #cv2.circle(outImage,(int((ln[0]+ln[2])/2),int((ln[1]+ln[3])/2)),int(r/2),(255,255,255),2,8,0)
+                print(final_slope)
+                if final_slope <= -3:
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 0), 2, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+                elif final_slope > -3:
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 0), 2, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
 
 
-    # show images, uncomment to see process
-    # cv2.imshow('Gray Image    ', grayImage)
-    # cv2.imshow('Binary Image', blackAndWhiteImage)
-    # cv2.imshow('Cropped Image', crop)
-    # cv2.imshow('Erosion Image', erosion)
-    cv2.imshow('Smooth Image', final)
-    # cv2.imshow('Final Image', originalImage)
+    # show images
+    if debug:#cvCvtColor(input, CV_GRAY2BGR)
+        images = [
+                    cv2.cvtColor(grayImage, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(med, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(blackAndWhiteImage, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(erosion, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(final, cv2.COLOR_GRAY2RGB),
+                    outImage
+                    ]
+        montages = build_montages(images, (1600, 600), (2, 3))
+        for montage in montages:
+            cv2.namedWindow("debug", cv2.WND_PROP_FULLSCREEN)
+            cv2.setWindowProperty("debug",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+            cv2.imshow("debug", montage)
 
     # show pectrogram
-    cv2.imshow('Spectrogram', outImage)
+    else:
+        cv2.namedWindow("Final", cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty("Final",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+        cv2.imshow("Final", outImage)
 
     cv2.waitKey(0)
 
