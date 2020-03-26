@@ -7,10 +7,20 @@ import os
 import math
 from scipy.spatial import distance
 import itertools
-
-# Enables debug drawings
+from imutils import build_montages
+from imutils import paths
+import intersect as IS
+import argparse
 debug = False
 
+#use -d tp show debug info
+parser = argparse.ArgumentParser(description='Enabled debugging.')
+parser.add_argument("-d", "--debug", help="Enabled debugging options.", action='store_true')
+args = parser.parse_args()
+dbg = args.debug
+
+if isinstance(dbg, bool) and dbg==True:
+    debug = True
 
 #load all files
 rootdir = 'data/'
@@ -63,11 +73,11 @@ for file in datafiles:
 
 
     # hough lines
-    minLineLength = 30
-    maxLineGap = 25
+    minLineLength = 130
+    maxLineGap = 1
     rho = 3
     theta = np.pi/180
-    threshold = 250
+    threshold = 300
     lines = cv2.HoughLinesP(final,rho,theta,threshold,minLineLength,maxLineGap)
     if not(lines is None):
         valid_lines = []
@@ -81,8 +91,7 @@ for file in datafiles:
         neighbor_dist = []
         for ln in valid_lines:
             near = []
-            #r = distance.euclidean((ln[0],ln[1]), (ln[2],ln[3]))
-            r = 19
+            r = 10
             if debug:
                 cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
                 cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
@@ -107,7 +116,7 @@ for file in datafiles:
                         neighbor_dist[i] = neighbor_dist[i] + neighbor_dist[k]
                         neighbor_dist[i] = list(k for k,_ in itertools.groupby(neighbor_dist[i]))
                         neighbor_dist[k]=[]
-
+        final_lines=[]
         for row in neighbor_dist:
             ln = np.array([100000,0,0,100000])
             for pt in row:
@@ -117,28 +126,61 @@ for file in datafiles:
                 if pt[1] < ln[3]:ln[3] = pt[1]
 
             if not(np.array_equal(ln,[100000,0,0,100000])):
+                final_lines.append(ln);
+
+        for ln1 in range(0, len(final_lines)-1):
+            for ln2 in range(ln1+1, len(final_lines)):
+                pt1 = IS.Point(final_lines[ln1][0],final_lines[ln1][1])
+                pt2 = IS.Point(final_lines[ln1][2],final_lines[ln1][3])
+                pt3 = IS.Point(final_lines[ln2][0],final_lines[ln2][1])
+                pt4 = IS.Point(final_lines[ln2][2],final_lines[ln2][3])
+                if IS.doIntersect(pt1, pt2, pt3, pt4):
+                    l1Len = IS.getLength(pt1, pt2)
+                    l2Len = IS.getLength(pt3, pt4)
+                    if l1Len < l2Len:
+                        final_lines[ln1] = [0,0,0,0]
+                    else:
+                        final_lines[ln2] = [0,0,0,0]
+
+        for ln in final_lines:
+            if not(np.array_equal(ln,[0,0,0,0])):
                 final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
                 if debug:
                     cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,0,255),2)
                 r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
-                cv2.circle(outImage,(int((ln[0]+ln[2])/2),int((ln[1]+ln[3])/2)),int(r/2),(255,255,255),2,8,0)
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,0),3)
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
+                #cv2.circle(outImage,(int((ln[0]+ln[2])/2),int((ln[1]+ln[3])/2)),int(r/2),(255,255,255),2,8,0)
                 print(final_slope)
                 if final_slope <= -3:
-                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 0), 2, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
                 elif final_slope > -3:
-                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[3]), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 0), 2, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
 
 
     # show images
-    if debug:
-        cv2.imshow('Gray Image', grayImage)
-        cv2.imshow('Averaged Image', med)
-        cv2.imshow('Binary Image', blackAndWhiteImage)
-        cv2.imshow('Eroded Image', erosion)
-        cv2.imshow('Averaged Image 2', final)
+    if debug:#cvCvtColor(input, CV_GRAY2BGR)
+        images = [
+                    cv2.cvtColor(grayImage, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(med, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(blackAndWhiteImage, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(erosion, cv2.COLOR_GRAY2RGB),
+                    cv2.cvtColor(final, cv2.COLOR_GRAY2RGB),
+                    outImage
+                    ]
+        montages = build_montages(images, (1600, 600), (2, 3))
+        for montage in montages:
+            cv2.namedWindow("debug", cv2.WND_PROP_FULLSCREEN)
+            cv2.setWindowProperty("debug",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+            cv2.imshow("debug", montage)
 
     # show pectrogram
-    cv2.imshow('Spectrogram', outImage)
+    else:
+        cv2.namedWindow("Final", cv2.WND_PROP_FULLSCREEN)
+        cv2.setWindowProperty("Final",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+        cv2.imshow("Final", outImage)
 
     cv2.waitKey(0)
 
