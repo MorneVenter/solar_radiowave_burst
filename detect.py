@@ -75,7 +75,7 @@ for file in datafiles:
     # hough lines
     minLineLength = 130
     maxLineGap = 1
-    rho = 3
+    rho = 5 #was 3
     theta = np.pi/180
     threshold = 300
     lines = cv2.HoughLinesP(final,rho,theta,threshold,minLineLength,maxLineGap)
@@ -83,7 +83,10 @@ for file in datafiles:
         valid_lines = []
         for line in lines:
             for x1,y1,x2,y2 in line:
-                slope = (y2-y1)/(x2-x1)
+                if x2-x1 == 0:
+                    slope = math.inf
+                else:
+                    slope = (y2-y1)/(x2-x1)
                 if slope<0 and slope>-math.inf and abs(slope)>0.1:
                     valid_lines.append([x1,y1,x2,y2])
                     if debug:
