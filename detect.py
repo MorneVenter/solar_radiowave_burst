@@ -11,6 +11,7 @@ from imutils import build_montages
 from imutils import paths
 import intersect as IS
 import argparse
+
 debug = False
 
 #use -d tp show debug info
@@ -35,6 +36,8 @@ for subdir, dirs, files in os.walk(rootdir):
 for file in datafiles:
     # load FIT data
     image = CallistoSpectrogram.read(file)
+    spectrogram_name = str(image.get_header()['DATE']) + "_" + str(image.get_header()['TIME-OBS'])
+
     nobg = plt.figure(figsize=(16,6))
     nobg = image.subtract_bg()
 
@@ -71,6 +74,7 @@ for file in datafiles:
     kernel_med = np.ones((6,6),np.uint8)/36
     final = cv2.filter2D(erosion,-1,kernel_med)
 
+    burst_found = False
 
     # hough lines
     minLineLength = 130
@@ -90,14 +94,14 @@ for file in datafiles:
                 if slope<0 and slope>-math.inf and abs(slope)>0.1:
                     valid_lines.append([x1,y1,x2,y2])
                     if debug:
-                        cv2.line(outImage,(x1,y1),(x2,y2),(0,0,255),2)
+                        cv2.line(outImage,(x1,y1),(x2,y2),(255,255,0),2)
         neighbor_dist = []
         for ln in valid_lines:
             near = []
-            r = 10
+            r = 12
             if debug:
-                cv2.circle(outImage,(ln[0],ln[1]),int(r),(0,0,255),1,8,0)
-                cv2.circle(outImage,(ln[2],ln[3]),int(r),(0,0,255),1,8,0)
+                cv2.circle(outImage,(ln[0],ln[1]),int(r),(255,255,0),1,8,0)
+                cv2.circle(outImage,(ln[2],ln[3]),int(r),(255,255,0),1,8,0)
             near.append([ln[0],ln[1]])
             near.append([ln[2],ln[3]])
             for ln2 in valid_lines:
@@ -144,27 +148,28 @@ for file in datafiles:
                         final_lines[ln1] = [0,0,0,0]
                     else:
                         final_lines[ln2] = [0,0,0,0]
-
         for ln in final_lines:
             if not(np.array_equal(ln,[0,0,0,0])):
                 final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
                 if debug:
                     cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,0,255),2)
                 r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
-                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,0),3)
-                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),2)
-                #cv2.circle(outImage,(int((ln[0]+ln[2])/2),int((ln[1]+ln[3])/2)),int(r/2),(255,255,255),2,8,0)
-                print(final_slope)
-                if final_slope <= -3:
-                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 0), 2, cv2.LINE_AA)
-                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
-                elif final_slope > -3:
-                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0, 0), 2, cv2.LINE_AA)
-                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 1, cv2.LINE_AA)
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),3)
+                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,255),2)
+                if final_slope <= -3.0:
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
+                    print("Type III SRB found at %s, saving results ... " % spectrogram_name)
+                    burst_found = True
+                elif final_slope > -3.0:
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255, 255, 255), 2, cv2.LINE_AA)
+                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
+                    print("Type II SRB found at %s, saving results ... " % spectrogram_name)
+                    burst_found = True
 
 
     # show images
-    if debug:#cvCvtColor(input, CV_GRAY2BGR)
+    if debug: #cvCvtColor(input, CV_GRAY2BGR)
         images = [
                     cv2.cvtColor(grayImage, cv2.COLOR_GRAY2RGB),
                     cv2.cvtColor(med, cv2.COLOR_GRAY2RGB),
@@ -175,17 +180,22 @@ for file in datafiles:
                     ]
         montages = build_montages(images, (1600, 600), (2, 3))
         for montage in montages:
+            if burst_found:
+                cv2.imwrite('detected_SRB/%s.png' % str(spectrogram_name), montage)
             cv2.namedWindow("debug", cv2.WND_PROP_FULLSCREEN)
-            cv2.setWindowProperty("debug",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+            cv2.setWindowProperty("debug",cv2.WINDOW_NORMAL,cv2.WINDOW_KEEPRATIO)
             cv2.imshow("debug", montage)
 
     # show pectrogram
     else:
+        if burst_found:
+            cv2.imwrite('detected_SRB/%s.png' % str(spectrogram_name), outImage)
         cv2.namedWindow("Final", cv2.WND_PROP_FULLSCREEN)
-        cv2.setWindowProperty("Final",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+        cv2.setWindowProperty("Final",cv2.WINDOW_NORMAL,cv2.WINDOW_KEEPRATIO)
         cv2.imshow("Final", outImage)
 
-    cv2.waitKey(0)
+
+    cv2.waitKey(1200)   # wait for 1.2 second
 
     # cleanup
     cv2.destroyAllWindows()
