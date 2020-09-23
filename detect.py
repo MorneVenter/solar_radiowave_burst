@@ -13,7 +13,14 @@ import intersect as IS
 import argparse
 
 debug = False
-
+print("-------------------------------------------------------------------------")
+print("DEVELOPED BY MORNE VENTER")
+print("-------------------------------------------------------------------------")
+print("TO RUN IN DEBUG MODE TYPE \"python3 detect.py -d\"")
+print("Place you .FITS file in the DATA folder.")
+print("You will find your results in the DETECTED_SRB folder.")
+print("Starting  SRB detection system ... ")
+print("-------------------------------------------------------------------------")
 #use -d tp show debug info
 parser = argparse.ArgumentParser(description='Enabled debugging.')
 parser.add_argument("-d", "--debug", help="Enabled debugging options.", action='store_true')
