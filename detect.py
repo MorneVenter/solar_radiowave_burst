@@ -84,21 +84,23 @@ for file in datafiles:
     originalImage = cv2.imread('pre-proc.png')
     grayImage = cv2.cvtColor(originalImage, cv2.COLOR_BGR2GRAY)
 
+    # mask spectogram
+    mask = np.zeros(grayImage.shape[:2], dtype=np.uint8)
+    cv2.rectangle(mask, (324,76), (1215,479), (255), thickness = -1)
+    crop = cv2.bitwise_and(grayImage, mask)
+
     #avg filter
     kernel_med = np.ones((6,6),np.uint8)/30
-    med = cv2.filter2D(grayImage,-1,kernel_med)
+    med = cv2.filter2D(crop,-1,kernel_med)
+
 
     # convert to binary img
-    (thresh, blackAndWhiteImage) = cv2.threshold(med, 90, 255, cv2.THRESH_BINARY)
+    (thresh, blackAndWhiteImage) = cv2.threshold(med, 45, 255, cv2.THRESH_BINARY) #was 90
 
-    # mask spectogram
-    mask = np.zeros(blackAndWhiteImage.shape[:2], dtype=np.uint8)
-    cv2.rectangle(mask, (324,76), (1215,479), (255), thickness = -1)
-    crop = cv2.bitwise_and(blackAndWhiteImage, mask)
 
     # Erosion
     e_kernel = np.ones((3,3),np.uint8)
-    erosion = cv2.erode(crop,e_kernel,iterations = 1)
+    erosion = cv2.erode(blackAndWhiteImage,e_kernel,iterations = 1)
 
     # avg 2
     kernel_med = np.ones((6,6),np.uint8)/36
@@ -109,7 +111,7 @@ for file in datafiles:
     # hough lines
     minLineLength = 130
     maxLineGap = 1
-    rho = 5 #was 3
+    rho = 4 #was 3
     theta = np.pi/180
     threshold = 300
     lines = cv2.HoughLinesP(final,rho,theta,threshold,minLineLength,maxLineGap)
@@ -178,24 +180,34 @@ for file in datafiles:
                         final_lines[ln1] = [0,0,0,0]
                     else:
                         final_lines[ln2] = [0,0,0,0]
-        for ln in final_lines:
-            if not(np.array_equal(ln,[0,0,0,0])):
+
+        if len(final_lines) > 0:
+            ln = final_lines[0]
+            for line_f in final_lines:
+                if not(np.array_equal(ln,[0,0,0,0])):
+                    len1 = math.sqrt((ln[3]-ln[1])**2 + (ln[2]-ln[0])**2)
+                    len2 = math.sqrt((line_f[3]-line_f[1])**2 + (line_f[2]-line_f[0])**2)
+                    if len2 > len1:
+                        ln = line_f
+            if math.sqrt((ln[3]-ln[1])**2 + (ln[2]-ln[0])**2) > 50.0:
                 final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
-                if debug:
-                    cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,0,255),2)
-                r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
-                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),3)
-                cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,255),2)
-                if final_slope <= -3.0:
-                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 2, cv2.LINE_AA)
-                    cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
-                    print("Type III SRB found at %s, saving results ... " % spectrogram_name)
-                    burst_found = True
-                elif final_slope > -3.0:
-                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255, 255, 255), 2, cv2.LINE_AA)
-                    cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
-                    print("Type II SRB found at %s, saving results ... " % spectrogram_name)
-                    burst_found = True
+                print(final_slope)
+                if not(final_slope > -0.1):
+                    if debug:
+                        cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,0,255),2)
+                    r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
+                    cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),3)
+                    cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,255),2)
+                    if final_slope <= -1.0:
+                        cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 2, cv2.LINE_AA)
+                        cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
+                        print("Type III SRB found at %s, saving results ... " % spectrogram_name)
+                        burst_found = True
+                    elif final_slope > -1.0:
+                        cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255, 255, 255), 2, cv2.LINE_AA)
+                        cv2.putText(outImage, 'Type II', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
+                        print("Type II SRB found at %s, saving results ... " % spectrogram_name)
+                        burst_found = True
 
 
     # show images
@@ -225,7 +237,7 @@ for file in datafiles:
         cv2.imshow("Final", outImage)
 
 
-    cv2.waitKey(1200)   # wait for 1.2 second
+    cv2.waitKey(0)   # wait for 1.2 second
 
     # cleanup
     cv2.destroyAllWindows()
