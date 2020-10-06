@@ -38,8 +38,8 @@ print("-------------------------------------------------------------------------
 print("DEVELOPED BY MORNE VENTER")
 print("-------------------------------------------------------------------------")
 print("TO RUN IN DEBUG MODE TYPE \"python3 detect.py -d\"")
-print("Place your .FITS file in the DATA folder.")
-print("You will find your results in the DETECTED_SRB folder.")
+print("Place your .FITS file in the INPUT_DATA folder.")
+print("You will find your results in the RESULTS folder.")
 print("Starting  SRB detection system ... ")
 print("-------------------------------------------------------------------------")
 
@@ -54,7 +54,7 @@ if isinstance(dbg, bool) and dbg==True:
     debug = True
 
 #load all files
-rootdir = 'data/'
+rootdir = 'Data/input_data'
 extensions = ('.fit.gz')
 datafiles = []
 for subdir, dirs, files in os.walk(rootdir):
@@ -72,11 +72,11 @@ for file in datafiles:
     nobg = image.subtract_bg()
 
     # plots spectogram and saves img
-    nobg.plot(vmin=0, vmax = 200, cmap='inferno')
+    nobg.plot(vmin=0, cmap='inferno')
     #plt.axis('equal')
     plt.title ('Result')
     plt.savefig('pre-proc.png')
-    image.plot()
+    nobg.plot(cmap='plasma')
     plt.savefig('output.png')
 
     # load and convert to grayscale
@@ -90,12 +90,12 @@ for file in datafiles:
     crop = cv2.bitwise_and(grayImage, mask)
 
     #avg filter
-    kernel_med = np.ones((6,6),np.uint8)/30
+    kernel_med = np.ones((9,9),np.uint8)/81
     med = cv2.filter2D(crop,-1,kernel_med)
 
 
     # convert to binary img
-    (thresh, blackAndWhiteImage) = cv2.threshold(med, 45, 255, cv2.THRESH_BINARY) #was 90
+    (thresh, blackAndWhiteImage) = cv2.threshold(med, 55, 255, cv2.THRESH_BINARY) #was 90
 
 
     # Erosion
@@ -109,11 +109,11 @@ for file in datafiles:
     burst_found = False
 
     # hough lines
-    minLineLength = 130
-    maxLineGap = 1
-    rho = 4 #was 3
+    minLineLength = 200
+    maxLineGap = 20
+    rho = 1 #was 3
     theta = np.pi/180
-    threshold = 300
+    threshold = 85
     lines = cv2.HoughLinesP(final,rho,theta,threshold,minLineLength,maxLineGap)
     if not(lines is None):
         valid_lines = []
@@ -191,13 +191,15 @@ for file in datafiles:
                         ln = line_f
             if math.sqrt((ln[3]-ln[1])**2 + (ln[2]-ln[0])**2) > 50.0:
                 final_slope = (ln[3]-ln[1])/(ln[2]-ln[0])
-                print(final_slope)
                 if not(final_slope > -0.1):
                     if debug:
                         cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,0,255),2)
-                    r = distance.euclidean((ln[0],ln[1]),(ln[2],ln[3]))
-                    cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),3)
-                    cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,255),2)
+                    r = int((distance.euclidean((ln[0],ln[1]),(ln[2],ln[3])))/2.0)
+                    if r>220:
+                        r=220
+                    cv2.circle(outImage,(int((ln[0]+ln[2])/2),int((ln[1]+ln[3])/2)), r,(0,0,255),4)
+                    #cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(255,255,255),3)
+                    #cv2.line(outImage,(ln[0],ln[1]),(ln[2],ln[3]),(0,0,255),2)
                     if final_slope <= -1.0:
                         cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(255,255, 255), 2, cv2.LINE_AA)
                         cv2.putText(outImage, 'Type III', (ln[0]+20,ln[1]+20), cv2.FONT_HERSHEY_COMPLEX , 0.7,(0,0,255), 1, cv2.LINE_AA)
@@ -223,7 +225,7 @@ for file in datafiles:
         montages = build_montages(images, (1600, 600), (2, 3))
         for montage in montages:
             if burst_found:
-                cv2.imwrite('detected_SRB/%s.png' % str(spectrogram_name), montage)
+                cv2.imwrite('Data/results/%s.png' % str(spectrogram_name), montage)
             cv2.namedWindow("debug", cv2.WND_PROP_FULLSCREEN)
             cv2.setWindowProperty("debug",cv2.WINDOW_NORMAL,cv2.WINDOW_KEEPRATIO)
             cv2.imshow("debug", montage)
@@ -231,13 +233,14 @@ for file in datafiles:
     # show pectrogram
     else:
         if burst_found:
-            cv2.imwrite('detected_SRB/%s.png' % str(spectrogram_name), outImage)
+            cv2.imwrite('Data/results/%s.png' % str(spectrogram_name), outImage)
         cv2.namedWindow("Final", cv2.WND_PROP_FULLSCREEN)
         cv2.setWindowProperty("Final",cv2.WINDOW_NORMAL,cv2.WINDOW_KEEPRATIO)
         cv2.imshow("Final", outImage)
 
+    if debug:
+        cv2.waitKey(0)
 
-    cv2.waitKey(0)   # wait for 1.2 second
 
     # cleanup
     cv2.destroyAllWindows()
