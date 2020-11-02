@@ -11,6 +11,8 @@ from imutils import build_montages
 from imutils import paths
 import intersect as IS
 import argparse
+import random
+import string
 
 debug = False
 print("-------------------------------------------------------------------------")
@@ -43,6 +45,10 @@ print("You will find your results in the RESULTS folder.")
 print("Starting  SRB detection system ... ")
 print("-------------------------------------------------------------------------")
 
+def get_random_string(length):
+    letters = string.ascii_lowercase
+    result_str = ''.join(random.choice(letters) for i in range(length))
+    return result_str
 
 #use -d tp show debug info
 parser = argparse.ArgumentParser(description='Enabled debugging.')
@@ -66,7 +72,11 @@ for subdir, dirs, files in os.walk(rootdir):
 for file in datafiles:
     # load FIT data
     image = CallistoSpectrogram.read(file)
-    spectrogram_name = str(image.get_header()['DATE']) + "_" + str(image.get_header()['TIME-OBS'])
+    spectrogram_name = get_random_string(12)
+    try:
+        spectrogram_name = str(image.get_header()['DATE']) + "_" + str(image.get_header()['TIME-OBS'])
+    except:
+        print("FITS file headers corrupted. Assigned a random name to output...")
 
     nobg = plt.figure(figsize=(16,6))
     nobg = image.subtract_bg()
